@@ -1,0 +1,1695 @@
+KubeMentor Engineering Journal
+
+Project: KubeMentor
+Owner: Samson
+Document Type: Living Engineering Journal / Demo Preparation Log
+Purpose: Record every KubeMentor build step, decision, problem, root cause, troubleshooting action, fix, verification step, and lesson learned.
+
+How to Use This Journal
+
+Update this file every time you work on KubeMentor.
+
+For every session, record:
+
+what you planned to do,
+
+what you changed,
+
+commands you ran,
+
+errors or unexpected behaviour,
+
+what caused the problem,
+
+how you investigated it,
+
+what fixed it,
+
+how you verified the fix,
+
+what you learned,
+
+
+what you will do next.
+
+This journal is intentionally not just a list of successful commands.
+
+Failures and troubleshooting are part of the project story.
+
+The journal can later help with:
+
+project demos,
+
+GitHub documentation,
+
+DevOps interviews,
+
+troubleshooting examples,
+
+STAR-format interview stories,
+
+architecture explanations,
+
+explaining why each tool or Kubernetes object was introduced.
+
+1. Project Vision
+
+Project Name
+
+KubeMentor
+
+Core Idea
+
+KubeMentor is a Kubernetes learning platform that will eventually teach Kubernetes step by step while also being deployed using the same DevOps and Kubernetes concepts that it teaches.
+
+The long-term goal is for KubeMentor to become:
+
+a real web application,
+
+a Kubernetes learning platform,
+
+a Kubernetes command reference,
+
+a troubleshooting and debugging reference,
+
+a secure multi-user application,
+
+a mobile-friendly Progressive Web App (PWA),
+
+a DevOps portfolio project,
+
+a practical demonstration of Kubernetes, GitOps, CI/CD, security, networking, storage, secrets management, testing, and observability.
+
+Main Learning Principle
+
+The project should be built incrementally.
+
+Requirement
+    ↓
+Understand why it is needed
+    ↓
+Implement it
+    ↓
+Test it
+    ↓
+Break something intentionally
+    ↓
+Troubleshoot it
+    ↓
+Fix it
+    ↓
+Verify it
+    ↓
+Commit it
+    ↓
+Document what was learned
+
+The goal is to understand the project rather than have AI generate the whole project at once.
+
+2. Planned Technology Stack
+
+Application
+
+Python
+
+Flask-a python web framework installed with pip install
+
+PostgreSQL
+
+HTML/CSS/JavaScript
+
+PWA support later
+
+Source Control
+
+Git
+
+GitHub
+
+Feature branch workflow
+
+Pull Requests
+
+Application Testing
+
+pytest-python testing 
+
+pytest-cov later
+
+unit testing
+
+integration testing
+
+database testing
+
+Code Quality / CI
+
+Ruff for linting and formatting
+
+SonarQube / SonarCloud analysis
+
+Sonar Quality Gate
+
+dependency security scanning
+
+Docker image vulnerability scanning
+
+Kubernetes manifest validation
+
+Helm validation
+
+Containers
+
+Docker
+
+Docker Compose
+
+Kubernetes
+
+Planned Kubernetes objects/topics include:
+
+Workloads
+
+Pod
+
+ReplicaSet
+
+Deployment
+
+StatefulSet
+
+DaemonSet
+
+Batch
+
+Job
+
+CronJob
+
+Networking
+
+Service
+
+EndpointSlice
+
+Ingress
+
+NetworkPolicy
+
+Configuration
+
+ConfigMap
+
+Secret
+
+Storage
+
+PersistentVolume
+
+PersistentVolumeClaim
+
+StorageClass
+
+Security / Identity
+
+ServiceAccount
+
+Role
+
+RoleBinding
+
+ClusterRole
+
+ClusterRoleBinding
+
+Scaling / Availability
+
+HorizontalPodAutoscaler
+
+PodDisruptionBudget
+
+Resource Management
+
+ResourceQuota
+
+LimitRange
+
+CPU/memory requests and limits
+
+Health
+
+startupProbe
+
+readinessProbe
+
+livenessProbe
+
+Secrets Management
+
+HashiCorp Vault
+
+External Secrets Operator
+
+ClusterSecretStore
+
+ExternalSecret
+
+Kubernetes Secret
+
+Stakater Reloader
+
+GitOps
+
+Argo CD
+
+Application
+
+AppProject
+
+ApplicationSet later
+
+automated sync
+
+prune
+
+selfHeal
+
+Packaging
+
+Helm
+
+Helm templates
+
+values files
+
+environment-specific values
+
+Planned Environments
+
+dev
+sandbox
+stage
+prod
+
+3. Planned Environment Model
+
+Initial learning setup:
+
+Minikube
+│
+├── kubementor-dev
+├── kubementor-sandbox
+├── kubementor-stage
+└── kubementor-prod
+
+Environment
+
+Purpose
+
+dev
+
+Fast development and validation
+
+sandbox
+
+Safe experimentation and failure testing
+
+stage
+
+Production-like validation
+
+prod
+
+Stable production environment
+
+Long-term promotion model:
+
+Build once
+   ↓
+Test once
+   ↓
+Create immutable image
+   ↓
+Promote same image
+   ↓
+dev → stage → prod
+
+4. Planned CI/CD Workflow
+
+The CI pipeline should eventually follow approximately:
+
+Feature branch / Pull Request
+        ↓
+Checkout
+        ↓
+Install dependencies
+        ↓
+Ruff lint
+        ↓
+Formatting check
+        ↓
+pytest
+        ↓
+Integration tests
+        ↓
+Coverage
+        ↓
+SonarQube analysis
+        ↓
+Sonar Quality Gate
+        ↓
+Dependency security scan
+        ↓
+Docker build
+        ↓
+Container vulnerability scan
+        ↓
+Kubernetes manifest validation
+        ↓
+Helm lint
+        ↓
+Helm template validation
+        ↓
+Push container image
+
+Continuous Delivery / GitOps:
+
+Container Registry
+       ↓
+Git desired state
+       ↓
+Argo CD
+       ↓
+Kubernetes
+       ↓
+dev / sandbox / stage / prod
+
+5. Planned Security Requirements
+
+Application Security
+
+secure login
+
+user registration
+
+password hashing
+
+password policy
+
+authorization / application RBAC
+
+secure session handling
+
+secure cookies
+
+rate limiting
+
+brute-force protection
+
+account lockout/throttling strategy
+
+CSRF protection
+
+XSS protection
+
+SQL injection prevention
+
+input validation
+
+output encoding
+
+audit logging
+
+secure password reset
+
+HTTPS/TLS in production
+
+security headers
+
+Kubernetes Security
+
+least privilege
+
+ServiceAccounts
+
+RBAC
+
+NetworkPolicy
+
+securityContext
+
+non-root containers
+
+drop unnecessary Linux capabilities
+
+prevent privilege escalation
+
+read-only filesystem where possible
+
+seccomp where appropriate
+
+resource requests and limits
+
+disable automatic ServiceAccount token mounting where not needed
+
+Secrets
+
+Secrets must not be committed to Git.
+
+Planned flow:
+
+Vault
+  ↓
+ClusterSecretStore
+  ↓
+ExternalSecret
+  ↓
+Kubernetes Secret
+  ↓
+Reloader
+  ↓
+Application workload
+
+6. KubeMentor Learning Content Planned
+
+The application should eventually contain a searchable Kubernetes reference.
+
+Kubernetes Commands by Category
+
+Planned categories:
+
+kubeconfig and context
+
+namespaces
+
+Pods
+
+Deployments
+
+ReplicaSets
+
+StatefulSets
+
+DaemonSets
+
+Jobs
+
+CronJobs
+
+Services
+
+networking
+
+storage
+
+ConfigMaps
+
+Secrets
+
+RBAC
+
+rollouts
+
+scaling
+
+logs
+
+exec
+
+events
+
+resource usage
+
+troubleshooting
+
+Argo CD
+
+Helm
+
+Every command should eventually explain:
+
+command syntax,
+
+purpose,
+
+when to use it,
+
+expected output,
+
+how to interpret the output,
+
+troubleshooting use cases.
+
+7. Chronological Engineering Log
+
+Session 1 — Project Foundation
+
+Goal
+
+Create a clean project structure and initialize source control before writing application code.
+
+Environment
+
+Windows 11
+
+WSL2 Ubuntu
+
+Python 3.12.3
+
+Git
+
+Minikube configured locally
+
+Kubernetes is visible in the shell, but KubeMentor is not using Kubernetes yet.
+
+Important Design Decision
+
+The project will first be proven as a normal application.
+
+Application works locally
+        ↓
+Docker works
+        ↓
+Docker Compose works
+        ↓
+Then migrate to Kubernetes
+
+Reason:
+
+This helps separate application problems from container or Kubernetes problems.
+
+Project Directory
+
+~/Projects/kubementor
+
+Initial Structure
+
+kubementor/
+├── app/
+├── tests/
+├── docs/
+├── README.md
+└── .gitignore
+
+Python virtual environment:
+
+.venv/
+
+Git Initialization
+
+Command:
+
+git init
+
+Purpose:
+
+Initialize the repository so the entire project history can be tracked.
+
+Branch Strategy
+
+Initial repository setup was committed to:
+
+main
+
+Actual application development moved to:
+
+feature/flask-foundation
+
+Why use a feature branch?
+
+main
+  ↓
+feature branch
+  ↓
+development
+  ↓
+testing
+  ↓
+Pull Request
+  ↓
+CI
+  ↓
+merge
+
+main should represent stable code.
+
+.gitignore
+
+Important entries:
+
+.venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+
+Why?
+
+.venv/
+
+contains local Python dependencies,
+
+can be recreated,
+
+should not be committed.
+
+.env
+
+may contain local configuration or secrets,
+
+must not be committed.
+
+.pytest_cache/
+
+generated automatically by pytest,
+
+is not source code.
+
+Session 2 — Flask Foundation
+
+Goal
+
+Create the first working KubeMentor web application.
+
+Flask Installation
+
+pip install Flask
+
+Initial Application File
+
+app/app.py
+
+Initial code:
+
+from flask import Flask
+
+app = Flask(__name__)
+
+
+@app.route("/")
+def home():
+    return "Welcome to KubeMentor"
+
+Concepts Learned
+
+Flask Application Object
+
+app = Flask(__name__)
+
+Creates the Flask web application.
+
+Route
+
+@app.route("/")
+
+Maps an HTTP path to a Python function.
+
+Request Flow
+
+Browser / curl
+      ↓
+HTTP GET /
+      ↓
+Flask
+      ↓
+home()
+      ↓
+HTTP response
+      ↓
+Welcome to KubeMentor
+
+Starting Flask
+
+flask --app app.app run
+
+Development address:
+
+http://127.0.0.1:5000
+
+localhost
+
+127.0.0.1 represents the local machine.
+
+Port 5000 is the port used by the Flask development server.
+
+Problem 1 — Port 5000 Already in Use
+
+What Happened
+
+Flask started correctly.
+
+Instead of stopping Flask with:
+
+Ctrl+C
+
+the process was suspended using:
+
+Ctrl+Z
+
+Shell output showed:
+
+Stopped flask --app app.app run
+
+When Flask was started again:
+
+Address already in use
+Port 5000 is in use by another program.
+
+Root Cause
+
+Ctrl+Z suspends a Linux process.
+
+It does not terminate it.
+
+The suspended Flask process still owned port 5000.
+
+Flask owns port 5000
+        ↓
+Ctrl+Z
+        ↓
+Flask suspended
+        ↓
+Process still exists
+        ↓
+Port remains occupied
+        ↓
+Second Flask server cannot bind to port 5000
+
+Troubleshooting Commands
+
+Check shell jobs:
+
+jobs
+
+Bring suspended process back:
+
+fg %1
+
+Stop correctly:
+
+Ctrl+C
+
+Lesson Learned
+
+Ctrl+C
+→ terminate foreground process
+
+Ctrl+Z
+→ suspend foreground process
+
+This was also useful Linux process-management practice.
+
+Session 3 — Testing the Root Endpoint
+
+Test
+
+curl http://127.0.0.1:5000/
+
+Result:
+
+Welcome to KubeMentor
+
+What This Proved
+
+curl
+ ↓
+HTTP request
+ ↓
+Flask
+ ↓
+route /
+ ↓
+home()
+ ↓
+response
+
+Session 4 — Health Endpoint
+
+Goal
+
+Create an application endpoint that can later support Docker and Kubernetes health checks.
+
+Added:
+
+@app.route("/health")
+def health():
+    return {"status": "healthy"}, 200
+
+Test
+
+curl http://127.0.0.1:5000/health
+
+Result:
+
+{"status":"healthy"}
+
+Header test:
+
+curl -I http://127.0.0.1:5000/health
+
+Result included:
+
+HTTP/1.1 200 OK
+
+Why /health Exists
+
+It answers:
+
+Is the application process alive?
+
+Future Kubernetes mapping:
+
+livenessProbe
+      ↓
+GET /health
+      ↓
+200 OK
+
+If liveness fails repeatedly, Kubernetes can restart the container.
+
+Session 5 — Readiness Endpoint
+
+Added:
+
+@app.route("/ready")
+def ready():
+    return {"status": "ready"}, 200
+
+Test
+
+curl http://127.0.0.1:5000/ready
+
+Result:
+
+{"status":"ready"}
+
+Liveness vs Readiness
+
+Liveness
+
+Question:
+
+Is the process alive?
+
+Endpoint:
+
+/health
+
+Readiness
+
+Question:
+
+Is the application ready to receive traffic?
+
+Endpoint:
+
+/ready
+
+Future example after PostgreSQL is introduced:
+
+Flask process running
+    ↓
+/health → 200
+
+PostgreSQL unavailable
+    ↓
+/ready → 503
+
+Kubernetes could keep the Pod alive while removing it from Service traffic.
+
+curl Commands Learned
+
+Response body:
+
+curl http://127.0.0.1:5000/health
+
+Headers / HEAD request:
+
+curl -I http://127.0.0.1:5000/health
+
+Headers + body:
+
+curl -i http://127.0.0.1:5000/health
+
+These commands will later be useful for debugging:
+
+Pods,
+
+Services,
+
+Ingress,
+
+APIs,
+
+health endpoints.
+
+Session 6 — Automated Testing with pytest
+
+Goal
+
+Introduce automated testing instead of relying only on manual curl checks.
+
+Installed:
+
+pip install pytest
+
+Verified:
+
+pytest 9.1.1
+
+Created:
+
+tests/test_health.py
+
+Test:
+
+from app.app import app
+
+
+def test_health():
+    client = app.test_client()
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "healthy"}
+
+Concepts Learned
+
+Flask Test Client
+
+client = app.test_client()
+
+Acts like a test client without requiring the Flask development server.
+
+Request
+
+response = client.get("/health")
+
+Makes an internal GET request to /health.
+
+Assertion
+
+assert response.status_code == 200
+
+Means:
+
+This condition must be true.
+
+If true:
+
+PASS
+
+If false:
+
+FAIL
+
+Problem 2 — pytest Could Not Import app
+
+Command
+
+pytest tests/test_health.py -v
+
+Error
+
+ModuleNotFoundError: No module named 'app'
+
+pytest reported:
+
+collected 0 items / 1 error
+
+Initial Attempt
+
+Created:
+
+app/__init__.py
+
+Reason:
+
+Make app an explicit Python package.
+
+Running the pytest executable directly still produced the import error.
+
+Root Cause
+
+The test logic itself was correct.
+
+The problem was related to Python module/import-path behaviour when launching pytest directly.
+
+Successful Command
+
+python3 -m pytest tests/test_health.py -v
+
+Result:
+
+collected 1 item
+tests/test_health.py::test_health PASSED
+
+Why python -m pytest Helped
+
+Instead of executing the pytest executable directly:
+
+pytest ...
+
+the active Python interpreter was explicitly used to execute the pytest module:
+
+python3 -m pytest ...
+
+This allowed the project package to be resolved correctly.
+
+Standard Test Command Going Forward
+
+While the virtual environment is active:
+
+python -m pytest
+
+This can later be used inside CI too.
+
+Understanding pytest Failure Types
+
+1. Collection / Import Error
+
+Example:
+
+ModuleNotFoundError
+
+Meaning:
+
+pytest could not load the test.
+
+Test file
+   ↓
+Import fails
+   ↓
+Test never executes
+
+2. Assertion Failure
+
+Meaning:
+
+pytest successfully ran the test, but the actual result did not match the expected result.
+
+Session 7 — Intentional Test Failure
+
+Goal
+
+Prove that pytest detects incorrect expectations.
+
+Correct test:
+
+assert response.status_code == 200
+
+Temporarily changed to:
+
+assert response.status_code == 201
+
+Then:
+
+python3 -m pytest tests/test_health.py -v
+
+Result:
+
+FAILED tests/test_health.py::test_health
+
+Important output:
+
+assert 200 == 201
+
+Interpretation
+
+Actual application response:
+
+200 OK
+
+Expected by test:
+
+201
+
+Therefore:
+
+actual != expected
+      ↓
+test fails
+
+Why This Matters for CI
+
+Future behaviour:
+
+git push
+   ↓
+CI
+   ↓
+python -m pytest
+   ↓
+tests pass?
+   ├── yes → continue
+   └── no  → stop pipeline
+
+This proves tests can prevent broken changes from progressing to container builds or deployment.
+
+Final Correct Test
+
+Before committing, restore:
+
+assert response.status_code == 200
+
+8. Current Application Status
+
+Implemented routes:
+
+GET /
+GET /health
+GET /ready
+
+Endpoint
+
+Purpose
+
+Expected Result
+
+/
+
+Home/root endpoint
+
+Welcome to KubeMentor
+
+/health
+
+Liveness-style check
+
+{"status":"healthy"} + HTTP 200
+
+/ready
+
+Readiness-style check
+
+{"status":"ready"} + HTTP 200
+
+Current automated test:
+
+/health
+
+Still to add:
+
+/
+ /ready
+
+9. Current Git Strategy
+
+Current development branch:
+
+feature/flask-foundation
+
+The Flask foundation remains on this branch until the feature is complete.
+
+Do not create a separate fix/ branch for bugs found during active feature development.
+
+Example:
+
+feature/flask-foundation
+   ├── add Flask app
+   ├── add /health
+   ├── add /ready
+   ├── add tests
+   ├── find bug
+   ├── fix bug
+   └── complete feature
+
+A fix/ or hotfix/ branch is more appropriate when repairing already-integrated stable code.
+
+10. Current Checkpoint
+
+✅ Git repository initialized
+✅ main branch created
+✅ feature/flask-foundation created
+✅ Python virtual environment created
+✅ Flask installed
+✅ Flask application created
+✅ / route created
+✅ /health created
+✅ /ready created
+✅ curl testing completed
+✅ port conflict diagnosed
+✅ pytest installed
+✅ first automated health test created
+✅ Python package/import problem diagnosed
+✅ python -m pytest works
+✅ deliberate assertion failure tested
+⬜ ensure health test is restored to HTTP 200
+⬜ add automated test for /
+⬜ add automated test for /ready
+⬜ run complete Flask foundation test suite
+⬜ review git diff
+⬜ stage completed work
+⬜ commit completed Flask foundation
+⬜ push branch / open PR later
+
+11. Where to Resume Next Time
+
+Start with:
+
+cd ~/Projects/kubementor
+source .venv/bin/activate
+git branch --show-current
+git status
+
+Expected branch:
+
+feature/flask-foundation
+
+Verify the health test contains:
+
+assert response.status_code == 200
+
+Run:
+
+python -m pytest tests/test_health.py -v
+
+Expected:
+
+PASSED
+
+Then continue with automated tests for:
+
+/
+ /ready
+
+12. Daily Engineering Journal Template
+
+Copy this section for every future KubeMentor working session.
+
+Session [NUMBER] — [DATE]
+
+Today's Goal
+
+What do I want to accomplish today?
+
+Current Branch
+
+Command:
+
+git branch --show-current
+
+Branch:
+
+<branch-name>
+
+Starting Git Status
+
+git status
+
+Summary:
+
+<clean / modified / untracked / staged>
+
+Environment Check
+
+For application-only work:
+
+pwd
+python --version
+
+For Kubernetes work:
+
+kubectl config current-context
+kubectl config view --minify --output 'jsonpath={..namespace}'; echo
+
+Context:
+
+<context>
+
+Namespace:
+
+<namespace>
+
+What I Planned to Build
+
+...
+
+Why This Feature Is Needed
+
+...
+
+Architecture Before Change
+
+...
+
+Architecture After Change
+
+...
+
+Files Changed
+
+...
+
+Commands Used
+
+# command
+
+Purpose:
+
+...
+
+Implementation Notes
+
+...
+
+Problem Encountered
+
+Error/message:
+
+...
+
+Symptoms
+
+...
+
+Initial Hypothesis
+
+...
+
+Root Cause
+
+...
+
+Why the Problem Happened
+
+...
+
+Troubleshooting Commands
+
+...
+
+What each command helped verify:
+
+...
+
+Fix Applied
+
+...
+
+Verification
+
+Commands:
+
+...
+
+Result:
+
+...
+
+What I Learned
+
+1.
+2.
+3.
+
+DevOps / Kubernetes Concept Learned
+
+...
+
+Security Considerations
+
+...
+
+Tests Added or Updated
+
+...
+
+CI/CD Impact
+
+...
+
+Git Review
+
+Before staging:
+
+git diff
+
+After staging:
+
+git diff --staged
+
+Commit
+
+git add ...
+git commit -m "..."
+
+Commit:
+
+<hash> <message>
+
+End-of-Session Git Status
+
+git status
+
+Expected when appropriate:
+
+nothing to commit, working tree clean
+
+Demo Explanation
+
+Explain today's work as if speaking to an interviewer:
+
+Today I ...
+The reason was ...
+I encountered ...
+I diagnosed it by ...
+The root cause was ...
+I fixed it by ...
+I verified the fix using ...
+
+Next Step
+
+...
+
+13. Troubleshooting Story Template
+
+Use this whenever a meaningful problem occurs.
+
+Problem
+
+...
+
+Impact
+
+...
+
+Symptoms
+
+...
+
+Investigation
+
+...
+
+Commands Used
+
+...
+
+Root Cause
+
+...
+
+Resolution
+
+...
+
+Verification
+
+...
+
+Prevention / Improvement
+
+...
+
+Interview Version
+
+During development of KubeMentor, I encountered ...
+I first verified ...
+The evidence showed ...
+I identified the root cause as ...
+I resolved it by ...
+I then verified ...
+To reduce the chance of recurrence, I ...
+
+14. Demo Preparation Section
+
+Demo Introduction
+
+Suggested future explanation:
+
+KubeMentor is a Kubernetes learning platform that I built incrementally to learn and demonstrate the complete DevOps application lifecycle. I started with a simple Flask application, then added automated testing, PostgreSQL, authentication, Docker, Docker Compose, CI quality gates, Kubernetes, Helm, Vault, External Secrets, Argo CD, GitOps, security, multi-environment deployment, and production-style troubleshooting.
+
+Planned Demo Flow
+
+1. Show GitHub repository
+2. Explain application architecture
+3. Log in
+4. Show Kubernetes learning dashboard
+5. Show commands and objects by category
+6. Show Docker image / Compose architecture
+7. Show CI pipeline
+8. Show SonarQube checks
+9. Show Kubernetes workloads
+10. Show PVC / StorageClass
+11. Show Vault / ExternalSecret
+12. Rotate a secret and demonstrate Reloader
+13. Show Helm
+14. Show Argo CD
+15. Show dev / sandbox / stage / prod
+16. Create a controlled failure
+17. Troubleshoot it
+18. Show GitOps self-healing
+19. Show PWA/mobile interface
+
+15. Interview Questions to Build Toward
+
+Application
+
+Why Flask?
+
+What is a health endpoint?
+
+What is a readiness endpoint?
+
+Why are liveness and readiness different?
+
+Git
+
+Why use feature branches?
+
+When would you use a fix branch?
+
+Why review git diff before committing?
+
+Testing
+
+Why use pytest?
+
+What is the difference between a collection error and a test failure?
+
+Why should tests run in CI?
+
+Docker
+
+Why containerize the application?
+
+Dockerfile vs Docker Compose?
+
+Why migrate from Docker Compose to Kubernetes?
+
+Kubernetes
+
+Pod vs Deployment?
+
+Deployment vs StatefulSet?
+
+Service vs Ingress?
+
+ConfigMap vs Secret?
+
+PV vs PVC?
+
+Why StorageClass?
+
+Job vs CronJob?
+
+Deployment vs DaemonSet?
+
+Role vs ClusterRole?
+
+readiness vs liveness vs startup probe?
+
+HPA?
+
+PDB?
+
+NetworkPolicy?
+
+Secrets
+
+Why Vault?
+
+What does External Secrets Operator do?
+
+ClusterSecretStore vs SecretStore?
+
+Why Reloader?
+
+Helm
+
+Why Helm?
+
+What are Chart.yaml, values.yaml, and templates?
+
+Why use environment-specific values?
+
+GitOps
+
+What does Argo CD do?
+
+What does selfHeal mean?
+
+What happens when Git and the cluster disagree?
+
+Why should Git be the desired state?
+
+CI/CD
+
+What does linting protect against?
+
+Why run unit/integration tests?
+
+What is a Sonar Quality Gate?
+
+Why scan container images?
+
+CI vs CD?
+
+Security
+
+How are passwords stored?
+
+How do you protect login endpoints?
+
+Why use least privilege?
+
+How do NetworkPolicies help?
+
+Why should secrets never be stored in Git?
+
+16. Rules for Maintaining This Journal
+
+Update it at the end of every KubeMentor session.
+
+Record failures, not only successful commands.
+
+Record the reason behind important commands.
+
+Record the root cause, not just the fix.
+
+Include verification after every fix.
+
+Add meaningful Git commit hashes/messages.
+
+Never put passwords, tokens, private keys, or secrets in this journal.
+
+Use screenshots separately if useful, but explain what they prove.
+
+Before demos, use this journal to reconstruct the project story.
+
+Periodically move polished explanations into the project's main README.
+
+17. Current One-Minute Project Explanation
+
+KubeMentor is a Kubernetes learning platform I am building from scratch as a long-term DevOps portfolio project. I started with a Python Flask application and created root, health, and readiness endpoints. I introduced automated testing with pytest and deliberately tested failure scenarios so I could understand how CI will detect broken changes. During the initial build I also troubleshot Linux process management when a suspended Flask process kept port 5000 occupied, and I diagnosed a Python import-path problem when pytest could not load the application package. The project will progressively move through PostgreSQL, authentication, Docker Compose, CI quality gates, Kubernetes, persistent storage, Vault, External Secrets, Reloader, Helm, Argo CD, GitOps, multi-environment deployment, security, and PWA/mobile capabilities.
+
+18. Current Portfolio Summary Draft
+
+KubeMentor — Kubernetes Learning & GitOps Platform
+Building a Kubernetes learning platform from the ground up using Python/Flask, PostgreSQL, Docker, Kubernetes, Helm, Argo CD, Vault, External Secrets Operator, and GitHub Actions. Implementing automated testing, CI quality gates, multi-environment GitOps delivery, secure authentication, persistent storage, Kubernetes networking, RBAC, autoscaling, secrets rotation, and troubleshooting labs. The platform is designed both to teach Kubernetes concepts and to use those same concepts in its own architecture.
+
+This wording should evolve as the project becomes more complete.
+
+End of Current Journal
