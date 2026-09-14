@@ -1,7 +1,7 @@
 from app import create_app
 
 def test_health():
-    app = create_app()
+    app = create_app("testing")
     client = app.test_client()
 
     response = client.get("/health")
