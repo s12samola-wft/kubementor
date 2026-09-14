@@ -1278,12 +1278,16 @@ Then continue with automated tests for:
 
 Copy this section for every future KubeMentor working session.
 
-Session [NUMBER] — [DATE]
+Session [NUMBER] — 12.09.26
 
-Today's Goal
+Today's Goal: Refactor KubeMentor from a simple single-file Flask application into a more scalable application-factory structure using:
+
+create_app()
+Flask Blueprints
+separated route files
 
 What do I want to accomplish today?
-
+prepare KubeMentor for future features such as authentication, PostgreSQL, lessons, user management, configuration, and multiple environments.
 Current Branch
 
 Command:
@@ -1355,9 +1359,29 @@ Implementation Notes
 ...
 
 Problem Encountered
+After changing app/app.py to:
+
+from app import create_app
+
+app = create_app()
+
+I ran:
+
+python -m pytest -v
+
+pytest failed during test collection.
+
+Error:
+
+ImportError: cannot import name 'create_app' from 'app'
+
+The test did not run.
+
 
 Error/message:
+pytest reported:
 
+collected 0 items / 1 error
 ...
 
 Symptoms
@@ -1365,11 +1389,23 @@ Symptoms
 ...
 
 Initial Hypothesis
+I noticed that:
 
+app/__init__.py
+
+was still empty.
+
+I suspected this could be the problem because:from app import create_app expects Python to find create_app inside the app package.I deliberately ran the test before changing the file so I could observe the failure and understand exactly what would happen.
 ...
 
 Root Cause
+The application-factory function had not yet been defined inside:
 
+app/__init__.py
+
+Therefore this import failed:
+
+from app import create_app
 ...
 
 Why the Problem Happened
@@ -1385,24 +1421,43 @@ What each command helped verify:
 ...
 
 Fix Applied
+Add the application factory to:
 
+app/__init__.py
+
+with:
+
+from flask import Flask
+
+
+def create_app():
+    app = Flask(__name__)
+
+    from app.routes.main import main_bp
+
+    app.register_blueprint(main_bp)
+
+    return app
 ...
 
 Verification
-
+After adding create_app(), run:
 Commands:
-
+python -m pytest -v
 ...
 
 Result:
-
+test_health PASSED ;test_ready PASSED ;test_home PASSED
 ...
 
 What I Learned
 
-1.
-2.
-3.
+__init__.py can do more than mark a directory as a Python package.
+In an application-factory architecture, app/__init__.py can become the central place where the Flask application is created.
+from app import create_app depends on the app package exposing a function called create_app.
+A pytest collection error means the tests never actually ran.
+Import errors should be diagnosed by tracing the import chain rather than immediately modifying tests.
+Automated tests are useful during refactoring because they prove whether existing application behavior remains intact.
 
 DevOps / Kubernetes Concept Learned
 
@@ -1468,7 +1523,27 @@ Next Step
 Use this whenever a meaningful problem occurs.
 
 Problem
+After changing app/app.py to:
 
+from app import create_app
+
+app = create_app()
+
+I ran:
+
+python -m pytest -v
+
+pytest failed during test collection.
+
+Error:
+
+ImportError: cannot import name 'create_app' from 'app'
+
+The test did not run.
+
+pytest reported:
+
+collected 0 items / 1 error
 ...
 
 Impact
@@ -1476,27 +1551,49 @@ Impact
 ...
 
 Symptoms
+app/__init__.py
 
+was still empty.
 ...
 
 Investigation
-
+app/__init__.py was empty
 ...
 
 Commands Used
-
+python -m pytest -v
 ...
 
 Root Cause
+The application-factory function had not yet been defined inside:
 
+app/__init__.py
+
+Therefore this import failed:
+
+from app import create_app
 ...
 
 Resolution
+Add the application factory to:
 
+app/__init__.py
+
+with:
+
+from flask import Flask
 ...
 
 Verification
+After adding create_app(), run:
 
+python -m pytest -v
+
+Expected:
+
+test_health PASSED
+test_ready PASSED
+test_home PASSED
 ...
 
 Prevention / Improvement
