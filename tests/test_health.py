@@ -9,7 +9,7 @@ def test_health():
     assert response.status_code == 200
     assert response.get_json() == {"status": "healthy"}
 def test_ready():
-    app = create_app()
+    app = create_app("testing")
     client = app.test_client()
     
     response = client.get("/ready")
@@ -17,7 +17,7 @@ def test_ready():
     assert response.status_code == 200
     assert response.get_json() == {"status": "ready"}
 def test_home():
-    app = create_app()
+    app = create_app("testing")
     client = app.test_client()
 
     response = client.get("/")
