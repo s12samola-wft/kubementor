@@ -1,0 +1,9 @@
+[project]
+name = "kubementor"
+version = "0.1.0"
+description = "A hands-on Kubernetes learning platform"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
