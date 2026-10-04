@@ -1277,6 +1277,28 @@ Then continue with automated tests for:
 12. Daily Engineering Journal Template
 
 Copy this section for every future KubeMentor working session.
+Goal:
+Introduce development, testing, and production configuration.
+
+Sensitive configuration:
+SECRET_KEY is injected at runtime and is not hardcoded.
+
+Non-sensitive configuration:
+APP_ENV may safely have environment-specific defaults.
+
+Validation performed:
+- TestingConfig loaded successfully
+- invalid environment rejected
+- production without SECRET_KEY rejected
+- production with injected SECRET_KEY started successfully
+- existing Flask endpoint tests remained green
+
+Lesson:
+Code defines which configuration values are required;
+the runtime environment supplies the actual values.
+
+Security principle:
+Fail fast when production secrets are missing.
 
 Session [NUMBER] — 12.09.26
 
