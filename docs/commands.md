@@ -14,6 +14,19 @@ Prove the tests ignore the shell environment:
 
     SECRET_KEY=anything APP_ENV=production pytest -v
 
+## Dependencies
+
+Top-level packages live in `requirements.in` and `requirements-dev.in`. The `.txt` files are generated lock files: every package pinned with hashes. Never edit the `.txt` files by hand.
+
+Change a version or add a package: edit the `.in` file, then regenerate both locks:
+
+    uv pip compile requirements.in --python-version 3.12 --generate-hashes --no-header -o requirements.txt
+    uv pip compile requirements-dev.in --python-version 3.12 --generate-hashes --no-header -o requirements-dev.txt
+
+Install exactly what is locked:
+
+    pip install --require-hashes --only-binary :all: -r requirements-dev.txt
+
 ## Run the app locally
 
     flask --app app.app run
