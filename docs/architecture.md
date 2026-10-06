@@ -4,7 +4,7 @@ How KubeMentor is built today, where it is going, and why each piece is there.
 
 Rule: a component is only marked **Built** when it is committed and merged to `main`. Everything else is **Planned** and may change.
 
-Last updated: 2026-10-06 (stage: Docker image done, CI next)
+Last updated: 2026-10-06 (stage: CI round 1 done — lint + test on every PR; next: build, smoke test, Trivy)
 
 ---
 
@@ -20,7 +20,12 @@ flowchart LR
     run["docker run -p 8000:8000<br/>-e SECRET_KEY=..."]
     check["scripts/check_health.py<br/>/health + /ready"]
 
+    ci["GitHub Actions<br/>lint ∥ test"]
+    sonar["SonarCloud<br/>quality gate"]
+
     dev -->|git push| gh
+    gh -->|every PR + main| ci
+    gh -->|every PR + main| sonar
     dev --> lock --> build --> image --> run --> check
 ```
 
@@ -33,7 +38,10 @@ What exists now:
 | Tests | 7 pytest tests | Isolated from the shell environment |
 | Dependencies | `.in` files compiled to hash-locked `.txt` files with `uv` | `pip --require-hashes --only-binary :all:` in the image |
 | Container | Dockerfile: pinned base digest, gunicorn, non-root user | Secret injected at runtime, never baked in |
-| Smoke test | `scripts/check_health.py [base_url]` | Exit code 0/1, so CI can use it |
+| Smoke test | `scripts/check_health.py [base_url]` | Exit code 0/1, so CI can use it; only accepts http(s) URLs |
+| CI | GitHub Actions `.github/workflows/ci.yml`: `lint` (Ruff) and `test` (pytest) as parallel jobs | Runs on every PR and on `main`; read-only token; actions pinned by commit SHA |
+| Static analysis | Ruff 0.16.10 (pinned) with explicit rules incl. Bandit security (`S`); SonarCloud quality gate on PRs | Gate blocks merging if new code lowers the security rating |
+| CI lab | Jenkins in Docker with a private DinD engine over mutual TLS (`ci/jenkins/`) | Set up first, then replaced by GitHub Actions; kept as a lab |
 
 ---
 
@@ -112,8 +120,9 @@ Key idea: **CI builds and proves the image; CD is pull-based.** CI never has clu
 | pytest | Built | First quality gate in CI | unittest |
 | uv (lock files) | Built | Fast, reproducible hash-locked dependencies | pip-tools, Poetry |
 | Docker | Built | Same artifact on laptop, CI, and cluster | Podman, Buildah; Kaniko inside clusters |
-| GitHub Actions | Planned (next) | Runs on GitHub's servers: free for public repos, triggered by push/PR, ✅/❌ on every PR; never touches the cluster | GitLab CI, Jenkins (set up as a lab in `ci/jenkins/`), CircleCI |
-| Ruff | Planned (next) | Lint + format in one fast tool | flake8 + black |
+| GitHub Actions | Built (lint + test); build/scan/push planned | Runs on GitHub's servers: free for public repos, triggered by push/PR, ✅/❌ on every PR; never touches the cluster | GitLab CI, Jenkins (set up as a lab in `ci/jenkins/`), CircleCI |
+| Ruff | Built | Lint + format in one fast tool | flake8 + black |
+| SonarCloud | Built | Static analysis and quality gate on every PR; free for public repos | SonarQube (self-hosted), CodeQL |
 | Trivy | Planned (next) | Free scanner for image CVEs, misconfig, secrets | Grype, Snyk |
 | Docker Hub (`samayohub/kubementor`) | Planned | Stores versioned images; the AWS platform pulls from here | GHCR, ECR, Harbor (self-hosted) |
 | PostgreSQL | Planned | Real data, makes `/ready` meaningful | MySQL; managed RDS / Cloud SQL |

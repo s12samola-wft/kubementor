@@ -5,13 +5,13 @@ The full record lives in `docs/Kubementor_journal`.
 
 Rule: only claim what is built and committed. Update this file at the end of every stage.
 
-Last updated: 2026-10-06 (stage: Docker image done, architecture documented; next: Jenkins CI)
+Last updated: 2026-10-06 (stage: CI round 1 — lint + test on every PR; next: build, smoke test, Trivy)
 
 ---
 
 ## 1. Project pitch (30 seconds)
 
-> I'm building KubeMentor, a Kubernetes learning platform, as a hands-on DevOps project. So far I've built the Python Flask service with health and readiness endpoints, environment-based configuration that fails fast when a production secret is missing, and an automated pytest suite that gives the same result in any environment. I've packaged it as a hardened Docker image: base image pinned by digest, hash-locked dependencies installed as wheels only, gunicorn, and a non-root user, with the secret injected at runtime. I work in feature branches with reviewed PRs, test every stage with a deliberate failure drill, and keep an engineering journal of every problem I hit. Next is a Jenkins pipeline with Trivy image scanning, then Kubernetes with Argo CD and monitoring with Prometheus and Grafana.
+> I'm building KubeMentor, a Kubernetes learning platform, as a hands-on DevOps project. So far I've built the Python Flask service with health and readiness endpoints, environment-based configuration that fails fast when a production secret is missing, and an automated pytest suite that gives the same result in any environment. I've packaged it as a hardened Docker image: base image pinned by digest, hash-locked dependencies installed as wheels only, gunicorn, and a non-root user, with the secret injected at runtime. I work in feature branches with reviewed PRs, test every stage with a deliberate failure drill, and keep an engineering journal of every problem I hit. Every pull request now runs a GitHub Actions pipeline — Ruff lint with security rules and the test suite in parallel — plus a SonarCloud quality gate, so nothing reaches main without passing. Next the pipeline builds, smoke-tests and Trivy-scans the image and pushes it to Docker Hub, then Kubernetes with Argo CD and monitoring with Prometheus and Grafana.
 
 ## 2. What is built so far
 
@@ -24,6 +24,8 @@ Last updated: 2026-10-06 (stage: Docker image done, architecture documented; nex
 | Dependencies | `.in` files compiled by `uv` into lock files with sha256 hashes | A tampered or swapped package fails the build instead of shipping |
 | Container | Dockerfile: base pinned by digest, gunicorn, non-root user (uid 10001), patched OS package | Reproducible, least-privilege image; secret supplied at runtime, never baked in |
 | Smoke test | `scripts/check_health.py [base_url]`, exit code 0/1 | Usable as a CI or post-deploy check |
+| CI | GitHub Actions: lint and test as parallel jobs on every PR and on `main`; read-only token; actions pinned by commit SHA | Broken or insecure code is caught before merge |
+| Quality gate | Ruff with Bandit security rules; SonarCloud gate on PRs | Security findings block the merge, not just style |
 | Documentation | README, `docs/architecture.md` with diagrams, engineering journal | Anyone can run, understand, and review the project |
 | Workflow | Git feature branches, PRs, small commits, failure drills | Traceable history; every change can be explained |
 
@@ -89,6 +91,39 @@ Last updated: 2026-10-06 (stage: Docker image done, architecture documented; nex
 - **Result:** `docker version` showed the server again, and the README quick start passed exactly as written.
 - **Learned:** "Service running" and "service reachable from where I am" are different questions. Check which binary actually runs before restarting things.
 
+### Story 9 — Choosing GitHub Actions over Jenkins
+
+- **Situation:** I first set up Jenkins in Docker, with a private Docker-in-Docker engine connected over mutual TLS, and ran two failure drills on it (wrong certificate path, wrong port).
+- **Task:** Pick the CI tool for the project's main pipeline.
+- **Action:** I compared them: Jenkins is common in enterprises but I have to host, patch and secure it, it used ~340 MiB of my laptop's RAM, and GitHub cannot reach it for webhooks. GitHub Actions runs on GitHub's servers, is free for public repos, reacts to every push and PR, and shows ✅/❌ on the PR. I chose GitHub Actions and kept the Jenkins setup in the repo as a documented lab.
+- **Result:** A pipeline I can run, maintain and explain end to end, with no infrastructure to babysit.
+- **Learned:** The concepts — stages, agents, secrets, post-build actions — are the same in both tools. Choosing the simpler tool that fits the constraints is an engineering decision, not a shortcut.
+
+### Story 10 — The first CI run failed on purpose-built security rules
+
+- **Situation:** The first GitHub Actions run on my PR failed in the Lint job; tests passed.
+- **Task:** Understand the two Ruff findings in my health-check script and fix them properly.
+- **Action:**
+  - **S310:** the script accepted a URL from the command line and passed it to `urlopen`, so `file:///etc/passwd` would read a local file. I added a check that only allows `http` and `https`, exiting with an error otherwise.
+  - **BLE001:** `except Exception` hid every error, including bugs in my own code. I caught `OSError` instead, because `URLError`, `HTTPError` and `TimeoutError` all inherit from it — catching only `URLError` would have missed timeouts.
+  - Ruff still flags `urlopen` after the check because it cannot follow the logic, so I added `# noqa: S310` with a comment explaining the protection.
+- **Result:** Lint passed on the next push (run history: `773db28` ❌ → `84bcc2d` ✅). Tested against the real container, a stopped server, a 404, and a `file://` URL.
+- **Learned:** Fix the risk first, then document why the remaining warning is safe. A `noqa` without a fix is hiding, not fixing.
+
+### Story 11 — SonarCloud blocked the merge
+
+- **Situation:** With lint and tests green, the SonarCloud quality gate still failed: security rating C on new code.
+- **Action:** I looked up the actual issue instead of guessing: rule `docker:S6506` in the Jenkins Dockerfile — `curl -L` downloading Docker's GPG signing key could follow a redirect to plain HTTP, where the key could be swapped. I added `--proto "=https" --tlsv1.2`, so every request and redirect must be HTTPS with TLS 1.2+, and confirmed the image still builds.
+- **Result:** Gate back to green; PR #6 merged; main stays green in both CI and SonarCloud.
+- **Learned:** The signing key decides which packages an image trusts, so how it is downloaded is a supply-chain question. Fixing it in one line beat excluding the folder from analysis.
+
+### Story 12 — Not trusting AI-generated pins
+
+- **Situation:** An AI assistant (Codex) generated a full pipeline for me, with every third-party action pinned to a commit SHA, as I had asked.
+- **Action:** Before using it I checked each SHA against the action's real release tag. Seven matched; the Trivy action's SHA did not exist anywhere in that repository — it was invented.
+- **Result:** I caught it before it reached the pipeline and used the real commit. I also decided to build the pipeline in small rounds I fully understand rather than adopt a 230-line file at once.
+- **Learned:** Pinning by SHA only protects you if the SHA is real. Verify generated code like any other untrusted input.
+
 ## 4. Tools: what I used and the alternatives
 
 | Purpose | Used in KubeMentor | Alternatives seen in companies |
@@ -99,8 +134,10 @@ Last updated: 2026-10-06 (stage: Docker image done, architecture documented; nex
 | Dependency locking | uv (`uv pip compile --generate-hashes`) | pip-tools, Poetry |
 | Containers | Docker, gunicorn | Podman; uvicorn; Kaniko for in-cluster builds |
 | Diagrams | Mermaid in Markdown (rendered by GitHub) | draw.io, Excalidraw, Lucidchart |
+| CI | GitHub Actions (Jenkins built as a lab) | GitLab CI, Jenkins, CircleCI |
+| Lint / static analysis | Ruff (incl. Bandit security rules), SonarCloud | flake8 + bandit, SonarQube, CodeQL |
 
-Planned, not yet built: Jenkins, Trivy, PostgreSQL, Kubernetes (Minikube, then k3s), Helm, Argo CD, cert-manager, Calico, Prometheus, Grafana, Loki, Alertmanager with Slack, OpenTofu.
+Planned, not yet built: Trivy, PostgreSQL, Kubernetes (Minikube, then k3s), Helm, Argo CD, cert-manager, Calico, Prometheus, Grafana, Loki, Alertmanager with Slack, OpenTofu.
 
 ## 5. Questions I can answer now
 
@@ -114,3 +151,7 @@ Planned, not yet built: Jenkins, Trivy, PostgreSQL, Kubernetes (Minikube, then k
 - **Why not put the secret in the image?** Anyone who can pull the image could read it, and changing it would mean rebuilding. It is injected at runtime instead.
 - **What does `--require-hashes` protect against?** A package on the index being replaced or tampered with: pip refuses any file whose hash is not in the lock file.
 - **Why rebuild with `--no-cache` when testing the build?** Cached layers are reused without running their commands, so a cached build proves nothing about steps that did not run.
+- **Why run lint and tests as separate parallel jobs?** It's faster, and if lint fails I still see the test results in the same run.
+- **Why `permissions: contents: read` in the workflow?** Least privilege for the automatic GitHub token: a compromised step cannot push code or change the repo.
+- **Why pin GitHub Actions by commit SHA?** A tag like `v7` can be moved to different code; a SHA cannot. Same idea as pinning the base image digest.
+- **Security hotspot vs vulnerability in SonarCloud?** A hotspot needs a human review ("is this safe here?"); a vulnerability is a confirmed issue that lowers the security rating and can fail the gate.
