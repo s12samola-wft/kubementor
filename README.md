@@ -36,6 +36,7 @@ Target: GitHub Actions CI with Trivy scanning, images deployed to Kubernetes by 
 | Dependencies | `uv`-compiled lock files with sha256 hashes; image installs wheels only |
 | Container | Base image pinned by digest, gunicorn, non-root user (uid 10001), patched OS package |
 | Smoke test | `scripts/check_health.py` checks `/health` and `/ready`, exits 0 or 1 |
+| CI | GitHub Actions: Ruff lint and pytest run in parallel on every PR and on `main`; SonarCloud quality gate |
 
 | Endpoint  | Purpose                          | Response                          |
 |-----------|----------------------------------|-----------------------------------|
@@ -112,6 +113,9 @@ app/
 tests/               pytest suite and shared fixtures
 scripts/
   check_health.py    smoke test for /health and /ready
+.github/workflows/
+  ci.yml             GitHub Actions: lint and test on every PR
+ci/jenkins/          Jenkins + DinD lab (replaced by GitHub Actions)
 Dockerfile           production image
 requirements*.in     top-level dependencies
 requirements*.txt    hash-locked dependencies (generated)
@@ -135,13 +139,17 @@ Real problems hit while building, with root causes. Full write-ups are in [docs/
 | `ModuleNotFoundError: No module named 'app'` in pytest | Project root not on pytest's import path | `pythonpath = ["."]` in `pyproject.toml` |
 | `git push` returned HTTP 403 | Read-only token stored in plaintext by Git's `store` helper | Switched the remote to SSH |
 | Failure drill: changed one hash character in `requirements.txt` | (Intended) pip refuses files whose hash does not match | Build failed as expected; reverted and rebuilt. Also found that changing the **source archive** hash does not fail a wheel-only build, because pip accepts any listed hash and only downloads the wheel |
+| First CI run failed on the Lint job | Ruff's security rules flagged my health script: it would open `file://` URLs (S310) and caught every exception (BLE001) | Only allow `http`/`https` URLs; catch `OSError` (covers URLError, HTTPError, TimeoutError) |
+| SonarCloud quality gate blocked the merge | `curl -L` while downloading Docker's signing key could follow a redirect to plain HTTP | `curl --proto "=https" --tlsv1.2` |
+| An AI-generated workflow pinned the Trivy action to a commit that does not exist | AI tools can invent SHAs | Verified every pinned SHA against the real release tag before use |
 
 ## Roadmap
 
 - [x] Flask service with health and readiness endpoints
 - [x] Environment-based configuration with fail-fast rules, pytest suite
 - [x] Docker image: pinned base, hash-locked dependencies, non-root, gunicorn
-- [ ] GitHub Actions pipeline: Ruff, pytest, image build, Trivy scan, push to Docker Hub
+- [x] GitHub Actions CI: Ruff lint and pytest as parallel jobs on every PR, SonarCloud quality gate
+- [ ] CI: image build, smoke test, Trivy scan, push to Docker Hub, Slack notification
 - [ ] PostgreSQL with Docker Compose and a real `/ready` check
 - [ ] Kubernetes on Minikube with Calico: Deployment, Service, probes, ConfigMap, Secret
 - [ ] PostgreSQL StatefulSet with persistent storage

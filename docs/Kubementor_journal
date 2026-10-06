@@ -1464,6 +1464,92 @@ Next
 
 Step 3: first Jenkinsfile — Ruff lint + pytest, running in a python:3.12 container on DinD, Jenkins polling GitHub.
 
+Session — Switching to GitHub Actions: CI round 1 (06.10.26)
+
+Branch / PR
+
+feature/ci-pipeline (renamed from feature/jenkins-ci) → PR #6, merged as 3b54561
+
+Decision: GitHub Actions instead of Jenkins
+
+Jenkins pipelines were hard for me to follow; GitHub Actions was clearer, and my goal is to explain every part of KubeMentor simply.
+Reasons:
+- runs on GitHub's servers, free for public repos, no laptop RAM (Jenkins + DinD used ~340 MiB)
+- reacts to every push and PR directly (Jenkins on a laptop needed polling)
+- ✅/❌ shown on every PR
+- the AWS platform contract only needs "CI pushes the image to Docker Hub"
+Jenkins work kept in ci/jenkins/ as a lab. Concepts are the same: stage = job/step, agent = runs-on, credentials = secrets, post = if: failure().
+
+Ruff added (developer side)
+
+ruff==0.16.10 pinned in requirements-dev.in (hash-locked).
+pyproject.toml lists the rules explicitly: E, W, F, I, B, BLE, UP, S (S = Bandit security rules).
+Tests ignore S101 (pytest uses assert) and S105 (fake test secrets).
+Why explicit: Ruff 0.16's default rule set is much broader than older versions; without pinning version + rules, an upgrade could break CI with no code change.
+
+The pipeline — .github/workflows/ci.yml (round 1)
+
+on: pull_request + push to main
+permissions: contents: read   (least privilege for the automatic GitHub token)
+jobs (no needs: between them → run in parallel):
+  lint: checkout → setup-python 3.12 (pip cache) → pip install --require-hashes --only-binary :all: → ruff check --output-format github → ruff format --check
+  test: checkout → setup-python → install → pytest -v
+Actions pinned by commit SHA (checkout v7.0.1, setup-python v7.0.0), verified against the release tags.
+
+Problem 1 — YAML would not parse
+
+actionlint: could not parse as YAML: mapping values are not allowed in this context
+Root cause: in  run: pip install ... --only-binary :all: -r ...  the ": " is read by YAML as a key/value separator.
+Fix: quote the whole command.
+Lesson: run actionlint before pushing a workflow.
+
+Problem 2 — An AI-generated pipeline had an invented SHA
+
+I asked Codex for a full pipeline (lint, test, hadolint, build, smoke test, Trivy, push, Slack).
+Checked every pinned SHA against GitHub: 7 matched, the Trivy action SHA (a9c7b0f0...) does not exist in aquasecurity/trivy-action.
+Real v0.36.0 commit: ed142fd0673e97e23eac54620cfb913e5ce36c25.
+Also noticed: its push job rebuilt the image instead of pushing the scanned one ("ship what you tested").
+Decision: too much at once (~230 lines). Build the pipeline in 4 rounds I can explain:
+  1 lint + test  2 build + smoke test + Trivy  3 push to Docker Hub  4 Slack, hadolint, concurrency
+
+Problem 3 — First CI run failed (expected)
+
+Run on 773db28: lint ❌, test ✅
+scripts/check_health.py:7:14: S310 Audit URL open for permitted schemes.
+scripts/check_health.py:9:12: BLE001 Do not catch blind exception: `Exception`
+
+S310: the script takes a URL from the command line; urlopen("file:///etc/passwd") would read a local file.
+BLE001: except Exception also hides bugs in my own code.
+
+I could not work out the fix myself; Claude fixed it and explained it:
+- only allow http/https (urllib.parse.urlparse(...).scheme), else print an error and exit 1
+- catch OSError: URLError, HTTPError and TimeoutError all inherit from it (TimeoutError is NOT a URLError, so catching only URLError would miss timeouts)
+- Ruff still flags urlopen after the check (it cannot follow the logic) → # noqa: S310 with a comment saying why it is safe
+
+Verified: file:// URL → rejected, exit 1 | nothing running → FAIL, exit 1 | 404 server → FAIL, exit 1 | real container → OK, exit 0
+Run on 84bcc2d: lint ✅, test ✅
+
+Problem 4 — SonarCloud quality gate blocked the merge
+
+GitHub checks green, SonarCloud Code Analysis ❌.
+Gate detail: new_security_rating = 3 (C), threshold 1 (A). Security hotspots reviewed: 100%.
+Issue: ci/jenkins/Dockerfile line 6, docker:S6506 — curl -fsSL could follow a redirect to plain HTTP while downloading Docker's GPG signing key.
+Why it matters: that key decides which Docker packages the image trusts (supply chain).
+Fix: curl --proto "=https" --tlsv1.2 -fsSL ...   (every request and redirect must be HTTPS, TLS 1.2+)
+Verified: Jenkins image still builds, docker CLI works; curl --proto "=https" refuses an http:// URL.
+Run on b9b5944: lint ✅, test ✅, SonarCloud ✅ → PR #6 merged → main: CI ✅, SonarCloud gate OK
+
+Note: nothing in CI builds the Jenkins image. SonarCloud only reads files as text.
+Chose fixing over excluding ci/jenkins/ from analysis: exclusions are for code that is not ours.
+
+Docker Desktop
+
+WSL integration dropped a third time today. Check: type -a docker → must be /usr/bin/docker.
+
+Next
+
+Round 2: build the image in CI, smoke-test it with check_health.py, scan it with Trivy.
+
 8. Current Application Status
 
 Implemented routes:
