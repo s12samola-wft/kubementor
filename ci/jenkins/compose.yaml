@@ -1,0 +1,13 @@
+services:
+  jenkins:
+    image: jenkins/jenkins:lts-jdk21    # official LTS = stable release line
+    container_name: jenkins
+    ports:
+      - "127.0.0.1:8080:8080"           # web UI, reachable only from this machine
+    volumes:
+      - jenkins_home:/var/jenkins_home  # all jobs, plugins, credentials live here
+    environment:
+      JAVA_OPTS: "-Xmx768m"             # cap Java heap so it fits our RAM budget
+
+volumes:
+  jenkins_home:
