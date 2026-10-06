@@ -5,13 +5,13 @@ The full record lives in `docs/Kubementor_journal`.
 
 Rule: only claim what is built and committed. Update this file at the end of every stage.
 
-Last updated: 2026-10-04 (stage: application foundation and configuration)
+Last updated: 2026-10-06 (stage: Docker image done, architecture documented; next: Jenkins CI)
 
 ---
 
 ## 1. Project pitch (30 seconds)
 
-> I'm building KubeMentor, a Kubernetes learning platform, as a hands-on DevOps project. So far I've built the Python Flask service with health and readiness endpoints, environment-based configuration that fails fast when a production secret is missing, and an automated pytest suite that gives the same result in any environment. I work in feature branches with reviewed commits and keep an engineering journal of every problem I hit. Next I'm containerising it with Docker, adding a Jenkins pipeline with Trivy image scanning, then deploying to Kubernetes with Argo CD and monitoring it with Prometheus and Grafana.
+> I'm building KubeMentor, a Kubernetes learning platform, as a hands-on DevOps project. So far I've built the Python Flask service with health and readiness endpoints, environment-based configuration that fails fast when a production secret is missing, and an automated pytest suite that gives the same result in any environment. I've packaged it as a hardened Docker image: base image pinned by digest, hash-locked dependencies installed as wheels only, gunicorn, and a non-root user, with the secret injected at runtime. I work in feature branches with reviewed PRs, test every stage with a deliberate failure drill, and keep an engineering journal of every problem I hit. Next is a Jenkins pipeline with Trivy image scanning, then Kubernetes with Argo CD and monitoring with Prometheus and Grafana.
 
 ## 2. What is built so far
 
@@ -21,7 +21,11 @@ Last updated: 2026-10-04 (stage: application foundation and configuration)
 | Structure | Application factory (`create_app`) and blueprints | One app, many configurations: dev, testing, production |
 | Configuration | `APP_ENV` chooses the config; `SECRET_KEY` required in production | The app crashes at startup with a clear message instead of running insecurely |
 | Testing | 7 pytest tests, including the configuration rules | Tests will be the first gate in the CI pipeline |
-| Workflow | Git feature branches, small commits, engineering journal | Traceable history; every change can be explained |
+| Dependencies | `.in` files compiled by `uv` into lock files with sha256 hashes | A tampered or swapped package fails the build instead of shipping |
+| Container | Dockerfile: base pinned by digest, gunicorn, non-root user (uid 10001), patched OS package | Reproducible, least-privilege image; secret supplied at runtime, never baked in |
+| Smoke test | `scripts/check_health.py [base_url]`, exit code 0/1 | Usable as a CI or post-deploy check |
+| Documentation | README, `docs/architecture.md` with diagrams, engineering journal | Anyone can run, understand, and review the project |
+| Workflow | Git feature branches, PRs, small commits, failure drills | Traceable history; every change can be explained |
 
 ## 3. Challenges I solved (STAR stories)
 
@@ -61,15 +65,42 @@ Last updated: 2026-10-04 (stage: application foundation and configuration)
 - **Action:** Short term I used `python -m pytest`; later I added `pythonpath = ["."]` to `pyproject.toml` so plain `pytest` works everywhere, including CI.
 - **Learned:** A collection error means the tests never ran, which is different from a test failure. Fix it by tracing the import chain, not by editing the tests.
 
+### Story 6 — `git push` rejected with HTTP 403
+
+- **Situation:** Pushing my first feature branch to GitHub failed with HTTP 403, even though I was the owner of the repository.
+- **Task:** Find out why GitHub refused me and fix it without weakening security.
+- **Action:** I checked how Git was authenticating. Git's `store` credential helper was sending a saved token, and that token was read-only, so GitHub accepted who I was but refused the write. The token was also saved in plain text on disk. I switched the remote to SSH (`git@github.com:...`) and logged the GitHub CLI in separately for pull requests.
+- **Result:** Pushes work over SSH, and no token sits in plain text for Git.
+- **Learned:** 403 means "I know who you are, but you are not allowed"; 401 means "I don't know who you are". When a push fails, check which credential is actually being sent and what permissions it has, before changing repository settings.
+
+### Story 7 — Proving the dependency lock actually protects the build
+
+- **Situation:** I locked every Python dependency with sha256 hashes and made the Docker build install wheels only (`pip --require-hashes --only-binary :all:`). I needed proof that this stops a tampered package.
+- **Task:** Run a failure drill: break it on purpose, watch it fail, fix it, verify.
+- **Action:** I changed one character of a hash in `requirements.txt` and rebuilt. pip stopped the build with `THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE`, showing expected vs got. I reverted the change and the build passed. When re-checking, I found that changing the *other* hash of the same package did **not** break the build. Each package lists a hash for the wheel and one for the source archive; pip accepts any listed hash, and with `--only-binary` it only ever downloads the wheel, so the source-archive hash is never compared.
+- **Result:** The control works for what is actually installed. I also verified every hash against PyPI's published values, recompiled the lock files to confirm they match `requirements.in`, and rebuilt with `--no-cache`, because a cached build never re-runs pip.
+- **Learned:** A drill has to break the thing that is really used. "I changed something and it still passed" is a signal to find out what is being checked, not a reason to assume the protection is broken, or that it works.
+
+### Story 8 — Docker "could not be found" while Docker was running
+
+- **Situation:** Docker Desktop was running, but every `docker` command in WSL printed `The command 'docker' could not be found in this WSL 2 distro`.
+- **Task:** Work out whether the engine was down or just unreachable.
+- **Action:** `docker.exe version` (the Windows client) returned the server version, so the engine was up. `type -a docker` showed that WSL was running Docker Desktop's placeholder script, and the real client link `/usr/bin/docker` was missing. Re-enabling the distro under Docker Desktop → Settings → Resources → WSL integration fixed it.
+- **Result:** `docker version` showed the server again, and the README quick start passed exactly as written.
+- **Learned:** "Service running" and "service reachable from where I am" are different questions. Check which binary actually runs before restarting things.
+
 ## 4. Tools: what I used and the alternatives
 
 | Purpose | Used in KubeMentor | Alternatives seen in companies |
 |---|---|---|
 | Web framework | Flask | Django, FastAPI |
 | Testing | pytest | unittest |
-| Version control | Git + GitHub, feature branches | GitLab, Bitbucket; trunk-based development |
+| Version control | Git + GitHub, feature branches, SSH auth | GitLab, Bitbucket; trunk-based development |
+| Dependency locking | uv (`uv pip compile --generate-hashes`) | pip-tools, Poetry |
+| Containers | Docker, gunicorn | Podman; uvicorn; Kaniko for in-cluster builds |
+| Diagrams | Mermaid in Markdown (rendered by GitHub) | draw.io, Excalidraw, Lucidchart |
 
-Planned, not yet built: Docker, Jenkins, Trivy, PostgreSQL, Kubernetes (Minikube, then k3s), Helm, Argo CD, cert-manager, Calico, Prometheus, Grafana, Loki, Alertmanager with Slack, OpenTofu.
+Planned, not yet built: Jenkins, Trivy, PostgreSQL, Kubernetes (Minikube, then k3s), Helm, Argo CD, cert-manager, Calico, Prometheus, Grafana, Loki, Alertmanager with Slack, OpenTofu.
 
 ## 5. Questions I can answer now
 
@@ -78,3 +109,8 @@ Planned, not yet built: Docker, Jenkins, Trivy, PostgreSQL, Kubernetes (Minikube
 - **Why must tests not depend on the environment?** CI runners, containers, and laptops all have different environments. A test result should reflect the code, not the machine.
 - **Collection error vs test failure?** A collection error means pytest could not load the test file, so nothing ran. A failure means the test ran and the result did not match the expectation.
 - **Why feature branches?** `main` stays stable; work is reviewed and tested before it is merged.
+- **Why pin the base image by digest?** A tag such as `python:3.12-slim` can point to a different image tomorrow; a digest cannot. Updates become a deliberate, reviewed change.
+- **Why run the container as non-root?** If the app is compromised, the attacker has fewer permissions, and many Kubernetes clusters refuse root containers.
+- **Why not put the secret in the image?** Anyone who can pull the image could read it, and changing it would mean rebuilding. It is injected at runtime instead.
+- **What does `--require-hashes` protect against?** A package on the index being replaced or tampered with: pip refuses any file whose hash is not in the lock file.
+- **Why rebuild with `--no-cache` when testing the build?** Cached layers are reused without running their commands, so a cached build proves nothing about steps that did not run.
