@@ -43,9 +43,9 @@ What exists now:
 flowchart TB
     subgraph SRC["Source and CI"]
         devp["Developer"] -->|PR| repo["GitHub repo<br/>app code + Dockerfile"]
-        repo -->|webhook| jenkins["Jenkins pipeline<br/>lint → test → build → Trivy scan → push"]
-        jenkins -->|image tag| reg["Docker Hub<br/>samayohub/kubementor"]
-        jenkins -->|bump image tag| gitops["GitOps config<br/>Helm chart + values per env"]
+        repo -->|push / PR| gha["GitHub Actions<br/>lint → test → build → Trivy scan → push"]
+        gha -->|image tag| reg["Docker Hub<br/>samayohub/kubementor"]
+        gha -->|bump image tag| gitops["GitOps config<br/>Helm chart + values per env"]
     end
 
     subgraph K8S["Kubernetes cluster — Minikube + Calico, later k3s"]
@@ -82,14 +82,14 @@ flowchart TB
 sequenceDiagram
     participant D as Developer
     participant G as GitHub
-    participant J as Jenkins
+    participant J as GitHub Actions
     participant R as Registry
     participant C as GitOps config
     participant A as Argo CD
     participant K as Kubernetes
 
     D->>G: Push branch, open PR
-    G->>J: Webhook
+    G->>J: Trigger workflow (push / PR)
     J->>J: Ruff lint + pytest
     J->>J: docker build
     J->>J: Trivy scan (fail on HIGH/CRITICAL)
@@ -100,7 +100,7 @@ sequenceDiagram
     K->>K: Rolling update, readiness probe gates traffic
 ```
 
-Key idea: **CI builds and proves the image; CD is pull-based.** Jenkins never has cluster credentials. Argo CD pulls the desired state from Git, so Git is the single source of truth and drift is corrected automatically.
+Key idea: **CI builds and proves the image; CD is pull-based.** CI never has cluster credentials. Argo CD pulls the desired state from Git, so Git is the single source of truth and drift is corrected automatically.
 
 ---
 
@@ -112,7 +112,7 @@ Key idea: **CI builds and proves the image; CD is pull-based.** Jenkins never ha
 | pytest | Built | First quality gate in CI | unittest |
 | uv (lock files) | Built | Fast, reproducible hash-locked dependencies | pip-tools, Poetry |
 | Docker | Built | Same artifact on laptop, CI, and cluster | Podman, Buildah; Kaniko inside clusters |
-| Jenkins (Docker container on the laptop) | Planned (next) | Widely used in enterprises; pipeline as code (`Jenkinsfile`); never touches the cluster | GitHub Actions, GitLab CI |
+| GitHub Actions | Planned (next) | Runs on GitHub's servers: free for public repos, triggered by push/PR, ✅/❌ on every PR; never touches the cluster | GitLab CI, Jenkins (set up as a lab in `ci/jenkins/`), CircleCI |
 | Ruff | Planned (next) | Lint + format in one fast tool | flake8 + black |
 | Trivy | Planned (next) | Free scanner for image CVEs, misconfig, secrets | Grype, Snyk |
 | Docker Hub (`samayohub/kubementor`) | Planned | Stores versioned images; the AWS platform pulls from here | GHCR, ECR, Harbor (self-hosted) |
@@ -146,7 +146,7 @@ Key idea: **CI builds and proves the image; CD is pull-based.** Jenkins never ha
 
 ## 5. Open decisions
 
-Decided 2026-10-06: registry is Docker Hub (`docker.io/samayohub/kubementor`); Jenkins runs as a Docker container on the laptop (not in the cluster), polling GitHub.
+Decided 2026-10-06: registry is Docker Hub (`docker.io/samayohub/kubementor`); CI is GitHub Actions. Jenkins was set up first (in Docker, with a DinD engine over mutual TLS, kept in `ci/jenkins/` as a lab), then replaced by GitHub Actions because it is simpler to run, needs no laptop RAM, and reacts to pushes and PRs directly.
 
 To be settled when the stage starts, then recorded in the journal:
 
