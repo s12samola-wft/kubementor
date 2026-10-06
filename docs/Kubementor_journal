@@ -1153,6 +1153,114 @@ Before committing, restore:
 
 assert response.status_code == 200
 
+Session — Containerising KubeMentor with Docker (05.10.26)
+
+Branch
+
+feature/containerize
+
+Goal
+
+Package the Flask app as a production-style container image that:
+
+runs under gunicorn instead of the Flask dev server
+runs as a non-root user
+installs only the exact dependency files we locked (hash-checked)
+starts from a pinned base image
+
+Commits
+
+04eacb7 feat: containerise app with gunicorn, non-root user and patched base image
+a77c9b0 build: lock dependencies with hashes and install wheels only
+(tidy-up below is not committed yet)
+
+What the Dockerfile does
+
+FROM python:3.12-slim@sha256:02108f5d...       pinned base image digest
+apt-get --only-upgrade libpcre2-8-0            pick up the Debian security fix
+ENV APP_ENV=production                          production config by default
+pip install --require-hashes --only-binary :all: -r requirements.txt
+COPY app/                                       code copied after deps (better layer caching)
+useradd --uid 10001 appuser + USER appuser      not root
+CMD gunicorn --bind 0.0.0.0:8000 app.app:app
+
+SECRET_KEY is NOT in the image. It is injected at runtime with -e SECRET_KEY=...
+
+Dependency locking
+
+requirements.in / requirements-dev.in    = what we ask for (top-level packages)
+requirements.txt / requirements-dev.txt  = what we get (every package + version + sha256 hashes)
+
+--require-hashes      pip refuses any file whose sha256 is not listed
+--only-binary :all:   pip installs wheels only, never builds from source (sdist)
+
+Failure Drill — Tampered dependency hash
+
+Predict:
+If one character of a hash in requirements.txt is changed, pip should refuse to install and the image build should fail.
+
+Break:
+Changed one character in a hash in requirements.txt.
+
+Observe:
+docker build failed at the pip install step.
+
+Fix:
+Reverted the character, rebuilt. Build passed.
+
+Verify (done again on 05.10.26):
+- git status clean, requirements.txt identical to commit a77c9b0
+- every hash in requirements.txt and requirements-dev.txt compared with PyPI's published sha256 → all match
+- lock files recompiled from the .in files with uv → identical (in sync)
+- docker build --no-cache → success (a cached build does not re-run pip, so it proves nothing about hashes)
+
+Reproduced error (wheel hash changed for blinker):
+
+ERROR: THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE. ...
+    blinker==1.9.0 from .../blinker-1.9.0-py3-none-any.whl:
+        Expected sha256 b4ce2265a7abece4...
+        Expected     or ba0efaa9080b619e...
+             Got        ba0efaa9080b619f...
+ERROR: failed to build: ... did not complete successfully: exit code: 1
+
+Surprise found while re-checking
+
+Changing the OTHER blinker hash did NOT break the build.
+
+Root cause:
+Each package lists two hashes: one for the wheel (.whl) and one for the source archive (.tar.gz).
+pip accepts a download if it matches ANY listed hash.
+With --only-binary pip only downloads the wheel, so the .tar.gz hash is never compared.
+
+Lesson:
+A failure drill must break the thing that is actually used. "I changed something and it still passed" does not always mean the protection is broken; find out what is really being checked.
+
+Container verification
+
+docker run -d -p 8000:8000 -e SECRET_KEY=local-verify-only kubementor:verify
+python scripts/check_health.py http://localhost:8000
+  /health: OK
+  /ready: OK     exit code 0
+docker exec <container> id -u   → 10001 (not root)
+docker run without SECRET_KEY   → RuntimeError: SECRET_KEY must be provided in production (fail fast)
+
+Tidy-up (05.10.26)
+
+1. Base image pinned by digest. The Dockerfile comment already claimed this, but FROM was only python:3.12-slim (a tag can move to a different image; a digest cannot).
+   Find the current digest: docker buildx imagetools inspect python:3.12-slim
+2. PIP_ROOT_USER_ACTION=ignore: silences pip's "running as root" warning. pip runs as root at build time only; the app runs as appuser.
+3. Removed an extra blank line in the Dockerfile.
+4. scripts/check_health.py takes an optional base URL (default http://localhost:5000, the dev server), so it works against the container on port 8000. Exits 1 when the app is down.
+
+Interview angle
+
+"I locked dependencies with sha256 hashes and made the image build wheel-only. I tested it by tampering with a hash and the build failed. While re-checking, I found that changing the source-archive hash did not fail the build, and I traced that to pip accepting any listed hash and only ever downloading the wheel. So I know exactly what the control protects against."
+
+Next
+
+Open PR feature/containerize → main (gh auth login first)
+Then: Jenkins pipeline with Trivy image scan
+
 8. Current Application Status
 
 Implemented routes:
