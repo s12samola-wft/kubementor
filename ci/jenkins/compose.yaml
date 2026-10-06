@@ -1,13 +1,34 @@
+name: jenkins
+
 services:
-  jenkins:
-    image: jenkins/jenkins:lts-jdk21    # official LTS = stable release line
-    container_name: jenkins
-    ports:
-      - "127.0.0.1:8080:8080"           # web UI, reachable only from this machine
-    volumes:
-      - jenkins_home:/var/jenkins_home  # all jobs, plugins, credentials live here
+  docker:                                   # the private Docker engine (DinD)
+    image: docker:29-dind
+    container_name: jenkins-docker
+    privileged: true                        # DinD needs this to run containers
     environment:
-      JAVA_OPTS: "-Xmx768m"             # cap Java heap so it fits our RAM budget
+      DOCKER_TLS_CERTDIR: /certs            # DinD generates TLS certs here
+    volumes:
+      - docker-certs:/certs/client          # client certs, shared with Jenkins
+      - jenkins_home:/var/jenkins_home      # same workspace paths for build containers
+      - docker-data:/var/lib/docker         # keep pulled images between restarts
+
+  jenkins:
+    build: .
+    container_name: jenkins
+    depends_on:
+      - docker
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DOCKER_HOST: tcp://docker:2376        # talk to DinD, not Docker Desktop
+      DOCKER_CERT_PATH: /certs/client
+      DOCKER_TLS_VERIFY: "1"
+      JAVA_OPTS: "-Xmx768m"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - docker-certs:/certs/client:ro       # read-only: Jenkins only needs to read the certs
 
 volumes:
   jenkins_home:
+  docker-certs:
+  docker-data:
