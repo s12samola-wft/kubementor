@@ -1,4 +1,6 @@
-FROM python:3.12-slim
+# Pinned by digest so every build starts from the exact same base image.
+# Bump it deliberately (docker buildx imagetools inspect python:3.12-slim).
+FROM python:3.12-slim@sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d
 
 # Not pinned on purpose: we want Debian's latest security patch, and pinned
 # apt versions are removed from the archive. Reproducibility comes from the
@@ -10,6 +12,7 @@ RUN apt-get update \
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PIP_ROOT_USER_ACTION=ignore \
     APP_ENV=production
 
 WORKDIR /app
@@ -17,7 +20,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --require-hashes --only-binary :all: -r requirements.txt
 COPY app/ ./app/
-
 
 RUN useradd --create-home --uid 10001 appuser
 USER appuser

@@ -11,8 +11,9 @@ def check(url):
         return False
 
 
-
-base_url = "http://localhost:5000"
+# Usage: python scripts/check_health.py [base_url]
+# Default is the local Flask dev server; pass http://localhost:8000 for the container.
+base_url = sys.argv[1].rstrip("/") if len(sys.argv) > 1 else "http://localhost:5000"
 all_ok = True
 
 for endpoint in ("/health", "/ready"):
