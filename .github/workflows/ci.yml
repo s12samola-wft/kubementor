@@ -1,0 +1,80 @@
+# KubeMentor CI — round 1: quality gates
+#
+#   lint ─┐
+#         ├─ both run at the same time (in parallel); the PR shows ✅ only if both pass
+#   test ─┘
+#
+# Coming in later rounds: build + smoke test + Trivy scan, push to Docker Hub,
+# Slack notification.
+
+name: CI
+
+# WHEN this workflow runs.
+on:
+  pull_request: # every pull request, so the PR page shows ✅ or ❌
+  push:
+    branches: [main] # and again after merging, to prove main is still healthy
+
+# Least privilege: the workflow's automatic GitHub token may only READ the repo.
+permissions:
+  contents: read
+
+jobs:
+  # ── Job 1: Is the code tidy and safe? ─────────────────────────────────────
+  lint:
+    runs-on: ubuntu-latest # a fresh GitHub-hosted Linux machine, deleted after the job
+    timeout-minutes: 10 # stop a stuck job instead of burning free minutes
+
+    steps:
+      # The machine starts empty: download our repository onto it.
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Install Python 3.12 (same version as our Docker image) and cache pip
+      # downloads; the cache is reused until requirements-dev.txt changes.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      # Install exactly the locked versions. --require-hashes rejects any file
+      # whose hash differs from the lock file; --only-binary installs ready-made
+      # wheels and never runs a package's build code. Quoted because YAML would
+      # read the ": " in ":all: -r" as a key/value separator.
+      - name: Install locked dependencies
+        run: "pip install --require-hashes --only-binary :all: -r requirements-dev.txt"
+
+      # Ruff checks for bugs, import order and security issues (rules are in
+      # pyproject.toml). "github" format puts each finding on the PR's code line.
+      - name: Lint with Ruff
+        run: ruff check --output-format github .
+
+      # Check formatting only; CI never rewrites code.
+      - name: Check formatting
+        run: ruff format --check .
+
+  # ── Job 2: Does the code work? ────────────────────────────────────────────
+  # No "needs:" between lint and test, so GitHub runs them in parallel.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install locked dependencies
+        run: "pip install --require-hashes --only-binary :all: -r requirements-dev.txt"
+
+      # Run all tests; -v prints each test name, so a failure is easy to find.
+      - name: Run tests
+        run: pytest -v
