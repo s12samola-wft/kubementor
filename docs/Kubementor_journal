@@ -1344,6 +1344,126 @@ Next
 Branch, commit, push, PR for the docs.
 Then: Jenkins pipeline stage (Ruff, pytest, docker build, Trivy).
 
+Session — Jenkins in Docker with a private Docker engine (06.10.26)
+
+Branch
+
+feature/jenkins-ci
+
+Commits
+
+b30753b ci: run Jenkins controller in Docker, localhost-only, capped heap
+d316af9 ci: give Jenkins a private Docker engine (DinD) over mutual TLS
+
+Decisions made today
+
+CI tool: Jenkins (free, MIT licence; the cost is hosting, RAM and maintenance).
+Where: Docker container on the laptop, NOT in Kubernetes.
+  With GitOps, Jenkins only tests, scans, builds and pushes the image; Argo CD deploys.
+  Jenkins never needs cluster access, so it can live anywhere.
+Registry: Docker Hub, docker.io/samayohub/kubementor.
+Triggers: GitHub cannot reach a laptop, so Jenkins will poll the repo.
+Notifications: Slack incoming webhook from the Jenkinsfile post {} block (no plugin), planned for step 5.
+
+Disk was never the limit (925 GB free). RAM is (7.6 GiB for WSL2).
+Image sizes checked: jenkins/jenkins:lts-jdk21 ~246 MB, lts-alpine-jdk21 ~159 MB (compressed).
+
+Step 1 — Jenkins controller
+
+File: ci/jenkins/compose.yaml
+- image jenkins/jenkins:lts-jdk21 (Jenkins 2.580.1 LTS, Java 21)
+- port 127.0.0.1:8080:8080  → UI reachable only from this laptop, not from the Wi-Fi
+- port 50000 NOT published  → it is the inbound agent port; we have no agents dialling in
+- volume jenkins_home       → jobs, plugins, credentials survive container rebuilds
+- JAVA_OPTS -Xmx768m        → cap the Java heap
+- no restart policy         → Jenkins does not start with Docker Desktop, saves RAM; start it by hand
+
+Setup wizard: "Select plugins to install" → only Pipeline + Git.
+Ticking 2 plugins installed 56 (dependencies). Every plugin = more RAM and more security patches.
+
+Verify:
+curl http://localhost:8080/login → 200
+docker stats → 570 MiB at first start
+docker volume ls → jenkins_jenkins_home
+(Compose prefixes the project name, taken from the folder name "jenkins"; now set explicitly with name: jenkins)
+
+Step 2 — Docker for Jenkins: socket vs Docker-in-Docker
+
+Option A: mount /var/run/docker.sock → simple, but any pipeline gets root-level control of the laptop's Docker (and Minikube).
+Option B: docker:dind sidecar over TLS → Jenkins gets its own private engine. CHOSEN.
+
+Files:
+ci/jenkins/Dockerfile
+- FROM jenkins/jenkins:lts-jdk21
+- install docker-ce-cli only (the remote control, not the engine)
+- back to USER jenkins (root only while installing)
+- jenkins-plugin-cli --plugins docker-workflow (Docker Pipeline plugin)
+
+ci/jenkins/compose.yaml
+- docker service: docker:29-dind, privileged, DOCKER_TLS_CERTDIR=/certs, no ports published
+- jenkins service: DOCKER_HOST=tcp://docker:2376, DOCKER_CERT_PATH=/certs/client, DOCKER_TLS_VERIFY=1
+- certs volume shared, read-only in Jenkins
+- jenkins_home mounted in BOTH (build containers started by DinD need the same workspace path)
+
+Verify:
+docker exec jenkins docker version → client 29.8.2 -> server 29.8.2
+docker exec jenkins docker run --rm hello-world → works
+docker ps on the laptop → only jenkins and jenkins-docker (test containers ran inside DinD)
+RAM idle: jenkins 258 MiB, jenkins-docker 82 MiB
+
+Mutual TLS files in /certs/client:
+ca.pem   CA certificate, public  → Jenkins uses it to verify DinD is genuine
+cert.pem client certificate      → Jenkins proves who it is
+key.pem  client private key      → the actual secret
+
+Failure Drill 1 — wrong client cert path
+
+Break: DOCKER_CERT_PATH: /certs/client-A
+Observe: docker compose up -d "ran successfully". I first thought the drill had not worked.
+Investigate: the variable WAS applied. The container starts fine because Jenkins does not use Docker at startup.
+The failure only appears when the Docker CLI is used:
+
+Failed to initialize: unable to resolve docker endpoint: open /certs/client-A/ca.pem: no such file or directory
+
+My first answer: "server side". Wrong.
+Correct reading (read the error chain from the END):
+- "no such file or directory" = local filesystem error
+- "Failed to initialize" = the CLI failed while setting itself up, before any network call
+→ CLIENT side. The request never reached DinD.
+Fix: path back to /certs/client, up -d, verify → client 29.8.2 -> server 29.8.2
+
+Lesson: "the container started" is not "it works". A broken setting can sit unnoticed until the first pipeline uses it.
+
+Failure Drill 2 — wrong port
+
+Break: DOCKER_HOST: tcp://docker:2375
+Predicted: server side.
+Observe:
+
+Cannot connect to the Docker daemon at tcp://docker:2375. Is the docker daemon running?
+
+Investigate: docker exec jenkins-docker netstat -tln → only :::2376 LISTEN
+2375 = Docker's plain (unencrypted) port, 2376 = TLS port. With DOCKER_TLS_CERTDIR set, DinD opens only 2376.
+The connection left Jenkins and reached the DinD container; its OS kernel rejected it because nothing listens on 2375.
+Docker never saw the request. The message's guess ("is the daemon running?") was wrong: the daemon was running.
+Fix: back to 2376, up -d, verify → client 29.8.2 -> server 29.8.2
+
+Drill 1 vs Drill 2
+
+Drill 1: client side, before any network traffic, clue = local file error, proved with ls
+Drill 2: at the destination, clue = "Cannot connect ... tcp://", proved with netstat
+
+Lesson: an error message's suggestion is not a diagnosis. Prove it with evidence.
+
+Docker Desktop note
+
+Twice today the docker command in WSL fell back to the "could not be found" placeholder while Docker Desktop was running.
+Check: type -a docker → /usr/bin/docker is the real client. Fix: Settings → Resources → WSL integration.
+
+Next
+
+Step 3: first Jenkinsfile — Ruff lint + pytest, running in a python:3.12 container on DinD, Jenkins polling GitHub.
+
 8. Current Application Status
 
 Implemented routes:
