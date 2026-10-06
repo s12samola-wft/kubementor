@@ -1261,6 +1261,89 @@ Next
 Open PR feature/containerize → main (gh auth login first)
 Then: Jenkins pipeline with Trivy image scan
 
+Session — Architecture and README for the portfolio (06.10.26)
+
+Goal
+
+Before starting the CI stage, document KubeMentor the way a recruiter or new teammate would need it:
+setup instructions, architecture diagram, what was built and why, tools and alternatives, challenges and solutions.
+
+Starting point
+
+Docker stage merged to main (PR #3, PR #4, merge commit 229060a).
+
+Files Changed
+
+docs/architecture.md  (new)  current architecture, target architecture, change flow, component table, design decisions, open decisions
+README.md             (rewritten) why the project exists, architecture summary, what is built, Docker + local quick start, challenges and solutions, roadmap
+
+Tools Used
+
+Mermaid diagrams inside Markdown. GitHub renders them directly, so the diagrams live in Git next to the code and change in the same PR.
+Diagrams validated by rendering them with @mermaid-js/mermaid-cli before committing.
+
+Alternatives: draw.io / diagrams.net (export PNG or SVG), Excalidraw, Lucidchart (paid), Structurizr (C4 model).
+
+Rule kept in architecture.md
+
+A component is only "Built" when it is committed and merged to main. Everything else is "Planned".
+Same rule as the interview notes: never claim what does not exist.
+
+Things learned while drawing the target architecture
+
+1. CI builds and proves; CD pulls.
+   Jenkins builds, tests, scans, and pushes the image, then updates the image tag in the GitOps config.
+   Argo CD pulls from Git and syncs the cluster. Jenkins never holds cluster credentials.
+
+2. Metrics are pulled, logs are pushed.
+   Prometheus scrapes (pulls) /metrics from the app.
+   Loki does not scrape: an agent (Grafana Alloy) reads container logs and pushes them to Loki.
+   The first diagram drew the Loki arrow the wrong way; it was corrected after rendering.
+
+3. Laptop limits shape the design.
+   WSL2 has 7.6 GiB RAM, so tool stacks are rolled out in phases, not all at once.
+
+Problem Encountered
+
+The README Docker quick start could not be re-run today:
+
+The command 'docker' could not be found in this WSL 2 distro.
+
+Investigation:
+1. Started Docker Desktop. Same error.
+2. docker.exe version (the Windows client) → Server 29.6.1, so the engine WAS running.
+3. type -a docker → /mnt/c/Program Files/Docker/Docker/resources/bin/docker
+   This is a placeholder script that only prints the "could not be found" message.
+   /usr/bin/docker (the real client Docker Desktop links into the distro) did not exist.
+
+Root cause: Docker Desktop's WSL integration was not attached to this distro.
+"Engine running" and "engine reachable from WSL" are two different things.
+
+Fix: Docker Desktop → Settings → Resources → WSL integration → distro toggle on → Apply & restart.
+
+Verify:
+docker version     → shows a Server section
+type -a docker     → /usr/bin/docker
+README quick start re-run exactly as written:
+  /health: OK, /ready: OK, exit 0
+  container runs as uid 10001
+  without SECRET_KEY → RuntimeError: SECRET_KEY must be provided in production
+
+Lesson: check which binary actually runs (type -a / which) before assuming a service is down.
+
+Open decisions (settle at the start of each stage)
+
+Registry: GHCR vs Docker Hub
+Where Jenkins runs: container on the laptop vs inside Minikube
+Secrets store: OpenBao (open source) vs Vault (BSL licence)
+Authentication: Keycloak (OIDC) vs built-in login
+Production cluster: which low-cost VM for k3s
+
+Next
+
+Branch, commit, push, PR for the docs.
+Then: Jenkins pipeline stage (Ruff, pytest, docker build, Trivy).
+
 8. Current Application Status
 
 Implemented routes:
