@@ -22,7 +22,7 @@ flowchart LR
     run --> smoke["check_health.py<br/>/health + /ready"]
 ```
 
-Target: Jenkins CI with Trivy scanning, images deployed to Kubernetes by Argo CD (GitOps), PostgreSQL, secrets from OpenBao/Vault via External Secrets, and Prometheus, Grafana, Loki, and Alertmanager → Slack.
+Target: GitHub Actions CI with Trivy scanning, images deployed to Kubernetes by Argo CD (GitOps), PostgreSQL, secrets from OpenBao/Vault via External Secrets, and Prometheus, Grafana, Loki, and Alertmanager → Slack.
 
 **Full diagrams, components, and design decisions: [docs/architecture.md](docs/architecture.md)**
 
@@ -141,7 +141,7 @@ Real problems hit while building, with root causes. Full write-ups are in [docs/
 - [x] Flask service with health and readiness endpoints
 - [x] Environment-based configuration with fail-fast rules, pytest suite
 - [x] Docker image: pinned base, hash-locked dependencies, non-root, gunicorn
-- [ ] Jenkins pipeline: Ruff, pytest, image build, Trivy scan
+- [ ] GitHub Actions pipeline: Ruff, pytest, image build, Trivy scan, push to Docker Hub
 - [ ] PostgreSQL with Docker Compose and a real `/ready` check
 - [ ] Kubernetes on Minikube with Calico: Deployment, Service, probes, ConfigMap, Secret
 - [ ] PostgreSQL StatefulSet with persistent storage

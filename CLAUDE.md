@@ -16,8 +16,7 @@ Keep every change compatible with this contract:
   SECRET_KEY are injected at runtime (K8s Secret first, later AWS
   Parameter Store or Vault + External Secrets). Never bake secrets
   into the image or commit them.
-- Handover point: CI (Jenkins in a Docker container on the laptop,
-  not built yet) must test, scan (Trivy), build and push the image to
+- Handover point: CI (GitHub Actions, being built) must test, scan (Trivy), build and push the image to
   Docker Hub at docker.io/samayohub/kubementor with an immutable tag
   (git SHA) plus a version tag. The platform pulls that image, using
   Docker Hub credentials (imagePullSecret / docker login) to avoid
